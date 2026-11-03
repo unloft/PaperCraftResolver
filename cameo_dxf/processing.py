@@ -23,6 +23,9 @@ class Settings:
     remove_duplicates: bool = True   # evita i doppi contorni
     join_cut: bool = True
     outer_only: bool = False         # tieni solo il contorno più esterno
+    detect_drawn_dashes: bool = True # trattini disegnati come segmentini -> Piega
+    dash_max_mm: float = 4.0         # lunghezza massima di un trattino
+    dash_gap_mm: float = 3.0         # distanza massima fra trattini consecutivi
 
 
 @dataclass
@@ -55,6 +58,8 @@ def _artifact(pts, page: PageData, s: Settings) -> str | None:
     r = s.long_line_ratio
     if w < 0.01 and h < 0.01:
         return "degeneri"
+    if x0 < -1 or y0 < -1 or x1 > W + 1 or y1 > H + 1:
+        return "fuori pagina (clip)"
     if w >= r * W and h >= r * H:
         return "bordi pagina"
     if len(g.rdp(pts, 0.2)) == 2 and (g.length(pts) >= r * H or g.length(pts) >= r * W):
@@ -123,8 +128,23 @@ def process(page: PageData, roles: dict[str, str], s: Settings) -> Result:
                 res.fold.extend(g.explode_dashes(pts, list(vp.style.dashes), vp.style.dash_phase))
             else:
                 res.fold.append(pts)
+    if s.detect_drawn_dashes and res.cut:
+        idx = g.find_drawn_dashes(res.cut, s.dash_max_mm, s.dash_gap_mm)
+        res.fold += [p for i, p in enumerate(res.cut) if i in idx]
+        res.cut = [p for i, p in enumerate(res.cut) if i not in idx]
+        if idx:
+            res.removed["trattini spostati in Piega"] = len(idx)
     if s.join_cut:
         res.cut = g.join_polylines(res.cut, s.join_tol_mm)
+    if s.detect_drawn_dashes:
+        # dopo l'unione i contorni veri sono chiusi: i pezzi corti rimasti aperti
+        # e isolati sono trattini (estremi di linea, trattini a cavallo di un vertice)
+        loose = [p for p in res.cut if not g.is_closed(p, s.join_tol_mm)
+                 and g.length(p) <= 2 * s.dash_max_mm]
+        if loose:
+            res.cut = [p for p in res.cut if not any(p is q for q in loose)]
+            res.fold += loose
+            res.removed["trattini spostati in Piega"] += len(loose)
     if s.outer_only:
         res.cut = _outer_only(res.cut, res.removed)
     _fit(res, s.margin_mm)

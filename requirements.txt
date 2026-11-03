@@ -1,2 +1,4 @@
 pymupdf>=1.24
+numpy>=1.24
+pillow>=9.0
 ezdxf>=1.1        # opzionale: export R2000 alternativo e verifica file

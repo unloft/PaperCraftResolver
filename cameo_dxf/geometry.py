@@ -175,3 +175,41 @@ def point_in_polygon(p: Pt, poly: list[Pt]) -> bool:
         if (y1 > y) != (y2 > y) and x < (x2 - x1) * (y - y1) / (y2 - y1) + x1:
             inside = not inside
     return inside
+
+
+def find_drawn_dashes(polys: list[list[Pt]], max_len: float = 4.0, max_gap: float = 3.0,
+                      ang_tol_deg: float = 12.0, line_tol: float = 0.35) -> set[int]:
+    """Indici dei tracciati che sono trattini di una linea tratteggiata *disegnata*
+    (segmenti dritti corti, allineati con almeno un altro trattino vicino)."""
+    cand = {}
+    for i, p in enumerate(polys):
+        if len(p) < 2 or is_closed(p):
+            continue
+        L = length(p)
+        if L <= max_len and len(rdp(p, 0.05)) == 2 and dist(p[0], p[-1]) > 1e-6:
+            a, b = p[0], p[-1]
+            d = dist(a, b)
+            cand[i] = (a, b, ((b[0] - a[0]) / d, (b[1] - a[1]) / d))
+    cell = max_len + max_gap
+    grid: dict = defaultdict(list)
+    key = lambda q: (int(q[0] // cell), int(q[1] // cell))
+    for i, (a, b, _) in cand.items():
+        grid[key(lerp(a, b, 0.5))].append(i)
+    sin_tol = math.sin(math.radians(ang_tol_deg))
+    found: set[int] = set()
+    for i, (a, b, u) in cand.items():
+        kx, ky = key(lerp(a, b, 0.5))
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for j in grid.get((kx + dx, ky + dy), ()):
+                    if j == i:
+                        continue
+                    c, d_, v = cand[j]
+                    if abs(u[0] * v[1] - u[1] * v[0]) > sin_tol:
+                        continue                        # non parallelo
+                    off = lambda q: abs((q[0] - a[0]) * u[1] - (q[1] - a[1]) * u[0])
+                    if max(off(c), off(d_)) > line_tol:   # entrambi gli estremi sulla retta di i
+                        continue
+                    if min(dist(e, f) for e in (a, b) for f in (c, d_)) <= max_gap:
+                        found.add(i); found.add(j)
+    return found
