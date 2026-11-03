@@ -1,0 +1,2 @@
+pymupdf>=1.24
+ezdxf>=1.1        # opzionale: export R2000 alternativo e verifica file
