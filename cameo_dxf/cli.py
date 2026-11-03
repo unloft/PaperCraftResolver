@@ -48,6 +48,8 @@ def main(argv=None) -> int:
     ap.add_argument("--simplify", type=float, default=0.05)
     ap.add_argument("--outer-only", action="store_true")
     ap.add_argument("--no-explode", action="store_true", help="non spezzare i tratteggi")
+    ap.add_argument("--no-labels", action="store_true", help="non riportare numeri dei bordi e sigle")
+    ap.add_argument("--label-scale", type=float, default=1.0, help="fattore dimensione numeri")
     ap.add_argument("--nest", action="store_true", help="disponi i pezzi su fogli (default A4)")
     ap.add_argument("--merge", action="store_true", help="con --nest: unisci le pagine sugli stessi fogli")
     ap.add_argument("--sheet", default="A4", help="A4, A3, LETTER, MAT12 o LxH in mm (es. 210x297)")
@@ -58,7 +60,8 @@ def main(argv=None) -> int:
     pages = parse_pages(a.pages, page_count(a.pdf))
     if not pages:
         ap.error("nessuna pagina valida")
-    s = Settings(simplify_mm=a.simplify, outer_only=a.outer_only, explode_dashes=not a.no_explode)
+    s = Settings(simplify_mm=a.simplify, outer_only=a.outer_only, explode_dashes=not a.no_explode,
+                 keep_labels=not a.no_labels, label_scale=a.label_scale)
     w, h = parse_sheet(a.sheet)
     ns = NestSettings(sheet_w=w, sheet_h=h, margin_mm=a.margin, gap_mm=a.gap)
     base = os.path.splitext(a.out or a.pdf)[0]
@@ -69,7 +72,7 @@ def main(argv=None) -> int:
         writer(res, path)
         if a.svg:
             write_svg(res, os.path.splitext(path)[0] + ".svg")
-        print(f"  -> {path}  (taglio {len(res.cut)}, pieghe {len(res.fold)})")
+        print(f"  -> {path}  (taglio {len(res.cut)}, pieghe {len(res.fold)}, numeri {len(res.text)})")
 
     results = []
     for pi in pages:

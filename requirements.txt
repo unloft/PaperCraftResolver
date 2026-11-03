@@ -1,4 +1,5 @@
 pymupdf>=1.24
 numpy>=1.24
 pillow>=9.0
+Hershey-Fonts>=2.1   # numeri dei bordi a tratto singolo per la penna
 ezdxf>=1.1        # opzionale: export R2000 alternativo e verifica file

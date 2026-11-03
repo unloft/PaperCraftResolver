@@ -1,5 +1,6 @@
 """Estrazione dei vettori reali dal PDF con PyMuPDF (niente raster, niente Traccia)."""
 from __future__ import annotations
+import math
 import re
 from dataclasses import dataclass, field
 
@@ -65,6 +66,14 @@ class VPath:
 
 
 @dataclass
+class TextItem:
+    text: str
+    center: Pt          # mm, Y verso l'alto
+    angle: float        # gradi, antiorario
+    size: float         # corpo del font in mm
+
+
+@dataclass
 class PageData:
     index: int
     width_mm: float
@@ -72,6 +81,7 @@ class PageData:
     paths: list[VPath]
     n_text: int = 0
     n_images: int = 0
+    texts: list = field(default_factory=list)
 
     def styles(self) -> dict[str, tuple[Style, int]]:
         out: dict[str, tuple[Style, int]] = {}
@@ -150,10 +160,23 @@ def read_page(pdf_path: str, page_index: int = 0) -> PageData:
                     sp.closed = True
             if subs:
                 paths.append(VPath(style, subs))
+        texts = []
+        for b in page.get_text("rawdict")["blocks"]:
+            for ln in b.get("lines", []):
+                dx, dy = ln["dir"]
+                ang = math.degrees(math.atan2(-dy, dx))
+                for sp in ln["spans"]:
+                    t = "".join(ch["c"] for ch in sp["chars"]).strip()
+                    if not t:
+                        continue
+                    x0, y0, x1, y1 = sp["bbox"]
+                    c = T(pymupdf.Point((x0 + x1) / 2, (y0 + y1) / 2))
+                    texts.append(TextItem(t, c, ang, sp["size"] * PT2MM))
         return PageData(
             index=page_index,
             width_mm=r.width * PT2MM, height_mm=r.height * PT2MM,
             paths=paths,
             n_text=len(page.get_text("words")),
             n_images=len(page.get_images(full=True)),
+            texts=texts,
         )

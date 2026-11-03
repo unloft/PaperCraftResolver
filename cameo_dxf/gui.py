@@ -79,6 +79,8 @@ class App(tk.Tk):
             "detect_drawn_dashes": tk.BooleanVar(value=d.detect_drawn_dashes),
             "dash_max_mm": tk.DoubleVar(value=d.dash_max_mm),
             "dash_gap_mm": tk.DoubleVar(value=d.dash_gap_mm),
+            "keep_labels": tk.BooleanVar(value=d.keep_labels),
+            "label_scale": tk.DoubleVar(value=d.label_scale),
         }
         labels = {
             "simplify_mm": "Semplifica nodi (mm, 0=off)", "flatten_tol_mm": "Precisione curve (mm)",
@@ -89,6 +91,7 @@ class App(tk.Tk):
             "outer_only": "Solo contorno esterno (elimina tagli interni)",
             "detect_drawn_dashes": "Riconosci tratteggi disegnati a segmentini",
             "dash_max_mm": "Trattino: lunghezza max (mm)", "dash_gap_mm": "Trattino: distanza max (mm)",
+            "keep_labels": "Mantieni numeri bordi e sigle (penna)", "label_scale": "Dimensione numeri (x)",
         }
         row = 0
         for k, var in self.v.items():
@@ -134,7 +137,7 @@ class App(tk.Tk):
         self.canvas.bind("<Configure>", lambda e: self.draw())
         self.stats = tk.Text(right, height=7, wrap="word", font=("TkFixedFont", 9))
         self.stats.pack(fill="x", side="bottom")
-        ttk.Label(right, text="Rosso = Taglio (lama)   Blu = Piega (penna: Vel. 10, Forza 1)   "
+        ttk.Label(right, text="Rosso = Taglio (lama)   Blu = Pieghe e numeri (penna: Vel. 10, Forza 1)   "
                               "Arancio = stile selezionato").pack(anchor="w")
 
     # ---------- azioni ----------
@@ -195,6 +198,7 @@ class App(tk.Tk):
         r = self.result
         red = 100 * (1 - r.nodes_after / r.nodes_before) if r.nodes_before else 0
         txt = (f"Contorni di taglio: {len(r.cut)}\nSegmenti di piega: {len(r.fold)}\n"
+               f"Numeri/sigle (penna): {len(r.text)}\n"
                f"Nodi: {r.nodes_before} → {r.nodes_after} (-{red:.0f}%)\n"
                f"Area di disegno: {r.size[0]:.1f} × {r.size[1]:.1f} mm\nEliminati:\n" +
                "\n".join(f"  · {k}: {v}" for k, v in r.removed.items()))
@@ -214,7 +218,8 @@ class App(tk.Tk):
         k = min((cw - 20) / r.size[0], (ch - 20) / r.size[1])
         tx = lambda p: (10 + p[0] * k, ch - 10 - p[1] * k)
         c.create_rectangle(*tx((0, 0)), *tx(r.size), outline="#ddd", dash=(2, 2))
-        for polys, col in ((r.cut, COLORS[CUT]), (r.fold, COLORS[FOLD])):
+        for polys, col in ((r.cut, COLORS[CUT]), (r.fold, COLORS[FOLD]),
+                           ([p for w in r.text for p in w], COLORS[FOLD])):
             for p in polys:
                 c.create_line(*[v for q in p for v in tx(q)], fill=col, width=1)
         # evidenzia lo stile selezionato (anche se scartato) per riconoscerlo
@@ -240,7 +245,8 @@ class App(tk.Tk):
             tx = lambda p, ox=ox: (ox + p[0] * k, ch - 20 - p[1] * k)
             c.create_rectangle(*tx((0, 0)), *tx(sh.size), outline="#888")
             c.create_text(ox + 4, ch - 18 - H * k, anchor="sw", text=f"Foglio {i + 1}")
-            for polys, col in ((sh.cut, COLORS[CUT]), (sh.fold, COLORS[FOLD])):
+            for polys, col in ((sh.cut, COLORS[CUT]), (sh.fold, COLORS[FOLD]),
+                               ([p for w in sh.text for p in w], COLORS[FOLD])):
                 for p in polys:
                     c.create_line(*[v for q in p for v in tx(q)], fill=col)
 

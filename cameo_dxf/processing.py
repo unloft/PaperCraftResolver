@@ -26,12 +26,16 @@ class Settings:
     detect_drawn_dashes: bool = True # trattini disegnati come segmentini -> Piega
     dash_max_mm: float = 4.0         # lunghezza massima di un trattino
     dash_gap_mm: float = 3.0         # distanza massima fra trattini consecutivi
+    keep_labels: bool = True         # numeri bordi / sigle pezzi -> penna
+    label_max_chars: int = 6         # testi più lunghi = istruzioni, scartati
+    label_scale: float = 1.0         # fattore dimensione testo
 
 
 @dataclass
 class Result:
     cut: list = field(default_factory=list)
     fold: list = field(default_factory=list)
+    text: list = field(default_factory=list)    # parole: ciascuna lista di polilinee
     offset: tuple = (0.0, 0.0)       # traslazione applicata (adattamento pagina)
     size: tuple = (0.0, 0.0)         # area di disegno finale in mm
     nodes_before: int = 0
@@ -91,7 +95,6 @@ def _outer_only(cut, removed):
 
 def process(page: PageData, roles: dict[str, str], s: Settings) -> Result:
     res = Result()
-    res.removed["testi (ignorati)"] = page.n_text
     res.removed["immagini (ignorate)"] = page.n_images
     seen = set()
     for vp in page.paths:
@@ -147,9 +150,29 @@ def process(page: PageData, roles: dict[str, str], s: Settings) -> Result:
             res.removed["trattini spostati in Piega"] += len(loose)
     if s.outer_only:
         res.cut = _outer_only(res.cut, res.removed)
+    _labels(page, res, s)
     _fit(res, s.margin_mm)
     res.removed = Counter({k: v for k, v in res.removed.items() if v})
     return res
+
+
+def _labels(page: PageData, res: Result, s: Settings) -> None:
+    """Tiene solo i testi brevi che stanno dentro un pezzo (numeri dei bordi, sigle)."""
+    from . import text as tx
+    if not s.keep_labels or not page.texts or not res.cut or not tx.available():
+        res.removed["testi scartati"] += len(page.texts)
+        return
+    from .nesting import inside_mask
+    inside = inside_mask(res.cut)
+    for t in page.texts:
+        if len(t.text) > s.label_max_chars or not inside(t.center):
+            res.removed["testi scartati"] += 1
+            continue
+        word = tx.render(t.text, t.center, t.angle, t.size, s.label_scale)
+        if word:
+            res.text.append(word)
+    if res.text:
+        res.removed["testi mantenuti (numeri/sigle)"] = len(res.text)
 
 
 def _fit(res: Result, margin: float) -> None:
@@ -161,5 +184,6 @@ def _fit(res: Result, margin: float) -> None:
     dx, dy = margin - x0, margin - y0
     mv = lambda polys: [[(x + dx, y + dy) for x, y in p] for p in polys]
     res.cut, res.fold = mv(res.cut), mv(res.fold)
+    res.text = [mv(w) for w in res.text]
     res.offset = (dx, dy)
     res.size = (x1 - x0 + 2 * margin, y1 - y0 + 2 * margin)

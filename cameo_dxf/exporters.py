@@ -5,13 +5,19 @@ Equivalenza con le opzioni Inkscape del manuale:
   - Spline ROBO-Master disabilitate  - Appiattisci Bézier disabilitato (nessuna SPLINE)
 Layer TAGLIO = rosso (ACI 1)  ->  Silhouette: lama
 Layer PIEGHE = blu   (ACI 5)  ->  Silhouette: penna (Schizzo, Vel. 10, Forza 1)
+Layer NUMERI = blu   (ACI 5)  ->  penna: numeri dei bordi e sigle (font a tratto singolo)
 """
 from __future__ import annotations
 
 from .geometry import is_closed
 from .processing import Result
 
-LAYERS = (("TAGLIO", 1, "cut"), ("PIEGHE", 5, "fold"))
+LAYERS = (("TAGLIO", 1, "cut"), ("PIEGHE", 5, "fold"), ("NUMERI", 5, "text"))
+
+
+def _polys(res: Result, attr: str):
+    v = getattr(res, attr)
+    return [p for w in v for p in w] if attr == "text" else v
 
 
 class _Dxf:
@@ -56,7 +62,7 @@ def write_dxf_r14(res: Result, path: str) -> None:
     # ENTITIES
     d.g(0, "SECTION"); d.g(2, "ENTITIES")
     for layer, color, attr in LAYERS:
-        for poly in getattr(res, attr):
+        for poly in _polys(res, attr):
             closed = attr == "cut" and is_closed(poly)   # le pieghe restano SEMPRE aperte
             pts = poly[:-1] if closed else poly
             d.g(0, "LWPOLYLINE"); d.handle(); d.g(100, "AcDbEntity"); d.g(8, layer); d.g(62, color)
@@ -76,7 +82,7 @@ def write_dxf_r2000(res: Result, path: str) -> None:
     msp = doc.modelspace()
     for layer, color, attr in LAYERS:
         doc.layers.add(layer, color=color)
-        for poly in getattr(res, attr):
+        for poly in _polys(res, attr):
             closed = attr == "cut" and is_closed(poly)
             msp.add_lwpolyline(poly[:-1] if closed else poly, close=closed,
                                dxfattribs={"layer": layer, "color": color})
@@ -91,7 +97,7 @@ def write_svg(res: Result, path: str) -> None:
     for layer, _, attr in LAYERS:
         col = "#ff0000" if attr == "cut" else "#0000ff"
         out.append(f'<g id="{layer}" fill="none" stroke="{col}" stroke-width="0.2">')
-        for poly in getattr(res, attr):
+        for poly in _polys(res, attr):
             pts = " ".join(f"{x:.3f},{H - y:.3f}" for x, y in poly)
             out.append(f'<polyline points="{pts}"/>')
         out.append("</g>")

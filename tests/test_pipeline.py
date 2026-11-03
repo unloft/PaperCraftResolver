@@ -61,3 +61,24 @@ def test_drawn_dashes_and_nesting(tmp_path):
         for x, y in poly:
             assert ns.margin_mm - 1 <= x <= ns.sheet_w - ns.margin_mm + 1
             assert ns.margin_mm - 1 <= y <= ns.sheet_h - ns.margin_mm + 1
+
+
+def test_labels(tmp_path):
+    """Numeri dentro i pezzi mantenuti (tratto singolo), istruzioni fuori scartate."""
+    import pymupdf
+    from cameo_dxf.nesting import NestSettings, build_pieces, nest
+    doc = pymupdf.open(); p = doc.new_page()
+    p.draw_rect(pymupdf.Rect(100, 100, 300, 300), color=(0, 0, 0), width=1.4)
+    p.insert_text((190, 200), "42", fontsize=12)
+    p.insert_text((150, 120), "17", fontsize=12, rotate=90)
+    p.insert_text((100, 400), "Assemble C1 edges 42, 44", fontsize=11)
+    pdf = tmp_path / "l.pdf"; doc.save(str(pdf))
+    page = read_page(str(pdf), 0)
+    res = process(page, auto_roles(page), Settings())
+    assert len(res.text) == 2
+    ns = NestSettings()
+    pieces, _ = build_pieces(res, ns)
+    sheets, _ = nest(pieces, ns)
+    assert len(sheets[0].text) == 2
+    out = tmp_path / "l.dxf"; write_dxf_r14(sheets[0], str(out))
+    assert "NUMERI" in out.read_text()

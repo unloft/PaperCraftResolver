@@ -24,6 +24,7 @@ OUT = -1
 class Piece:
     cut: list
     fold: list
+    text: list = field(default_factory=list)
     area_mm2: float = 0.0
 
 
@@ -66,6 +67,17 @@ def _filled(polys, res, stroke):
     return a != 128, a == 255, origin
 
 
+def inside_mask(cut, r: float = 0.5, stroke: float = 0.8):
+    """Funzione punto(mm) -> True se il punto cade dentro un pezzo chiuso."""
+    filled, _, origin = _filled(cut, r, stroke)
+    H, W = filled.shape
+
+    def f(p):
+        x = int(round((p[0] - origin[0]) / r)); y = int(round((p[1] - origin[1]) / r))
+        return 0 <= x < W and 0 <= y < H and bool(filled[y, x])
+    return f
+
+
 def build_pieces(res_: Result, ns: NestSettings) -> tuple[list[Piece], dict]:
     report = {"pezzi spuri": 0, "linee orfane": 0}
     if not res_.cut:
@@ -102,6 +114,12 @@ def build_pieces(res_: Result, ns: NestSettings) -> tuple[list[Piece], dict]:
             groups[lb].fold.append(p)
         else:
             report["linee orfane"] += 1
+    for word in res_.text:
+        pts = [q for p in word for q in p]
+        x0, y0, x1, y1 = g.bbox(pts)
+        lb = label([((x0 + x1) / 2, (y0 + y1) / 2)])
+        if lb in groups and lb:
+            groups[lb].text.append(word)
     pieces = []
     for lb, pc in groups.items():
         if lb == 0:
@@ -199,9 +217,10 @@ def _nest_once(order: list[Piece], ns: NestSettings) -> tuple[list[Result], list
         cands = []
         for a in angles:
             cut, fold = _rot(pc.cut, a), _rot(pc.fold, a)
+            text = [_rot(w, a) for w in pc.text]
             mask, _, origin = _filled(cut, r, gap)
             # righe griglia contate dall'alto del foglio: impaginazione alto-sinistra
-            cands.append((a, cut, fold, mask[::-1].astype(np.float32), origin))
+            cands.append((a, cut, (fold, text), mask[::-1].astype(np.float32), origin))
 
         def try_sheet(occ):
             best = None
@@ -234,8 +253,8 @@ def _nest_once(order: list[Piece], ns: NestSettings) -> tuple[list[Result], list
                 a, cut, fold, m, origin = cands[0]
                 x0, y0, x1, y1 = g.bbox([q for p in cut for q in p])
                 dx, dy = ns.margin_mm - x0, ns.sheet_h - ns.margin_mm - y1
-                out.cut += [[(x + dx, y + dy) for x, y in p] for p in cut]
-                out.fold += [[(x + dx, y + dy) for x, y in p] for p in fold]
+                mv = lambda polys: [[(x + dx, y + dy) for x, y in p] for p in polys]
+                out.cut += mv(cut); out.fold += mv(fold[0]); out.text += [mv(w) for w in fold[1]]
                 out.size = (max(ns.sheet_w, x1 - x0 + 2 * ns.margin_mm), max(ns.sheet_h, y1 - y0 + 2 * ns.margin_mm))
                 sheets.append((np.ones((gh, gw), np.float32), out))
                 continue
@@ -253,8 +272,9 @@ def _place(occ, out: Result, b, r, ns: NestSettings):
     occ[y:y + h, x:x + w] = np.maximum(occ[y:y + h, x:x + w], m)
     dx = ns.margin_mm + x * r - origin[0]
     dy = ns.sheet_h - ns.margin_mm - origin[1] - (y + h - 1) * r   # maschera capovolta
-    out.cut += [[(px + dx, py + dy) for px, py in p] for p in cut]
-    out.fold += [[(px + dx, py + dy) for px, py in p] for p in fold]
+    mv = lambda polys: [[(px + dx, py + dy) for px, py in p] for p in polys]
+    fold, text = fold
+    out.cut += mv(cut); out.fold += mv(fold); out.text += [mv(w) for w in text]
 
 
 def usage(results: list[Result], pieces: list[Piece], ns: NestSettings) -> float:

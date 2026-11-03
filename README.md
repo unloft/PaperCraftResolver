@@ -13,6 +13,7 @@ Automatizza il workflow del manuale *Inkscape → DXF*, senza bisogno di Inkscap
 | Semplifica (Ctrl+L) | Ramer‑Douglas‑Peucker con tolleranza in mm |
 | Pieghe tratteggiate aperte | Il tratteggio del PDF diventa **segmenti aperti reali**; le pieghe sono sempre scritte aperte |
 | Ridimensiona pagina al disegno | Area di disegno adattata al contenuto + margine |
+| Numeri dei bordi e sigle dei pezzi | Mantenuti (solo i testi brevi **dentro** i pezzi) e ridisegnati con font a tratto singolo per la penna; istruzioni e titoli fuori dai pezzi vengono scartati |
 | Pieghe disegnate a segmentini (PDF reali) | Riconosce i trattini *disegnati* (segmenti corti allineati) e li sposta in Piega |
 | *(nuovo)* Risparmio carta | **Nesting** dei pezzi su fogli A4 (o A3, Letter, tappetino 12"): rotazioni, incastro sulla forma reale |
 | Salva come DXF R14, mm, LWPOLYLINE, no spline ROBO‑Master, no Appiattisci Bézier | Writer R14 nativo: `$INSUNITS=4` (mm), solo `LWPOLYLINE`, nessuna SPLINE |
@@ -21,6 +22,7 @@ Layer/colori in uscita:
 
 - **TAGLIO – rosso (ACI 1)** → lama, velocità 4‑6
 - **PIEGHE – blu (ACI 5)** → penna *Schizzo*, velocità 10, forza 1
+- **NUMERI – blu (ACI 5)** → penna: numeri dei bordi e sigle (A1, C3…), seguono il pezzo nel nesting
 
 ## Installazione
 
